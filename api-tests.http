@@ -1,0 +1,132 @@
+### ============================================================================
+### TEApoia REST API — Suíte de Testes Funcionais e Integração (TEA-25, TEA-26)
+### Pode ser executada com a extensão "REST Client" ou importada no Thunder Client
+### ============================================================================
+
+@baseUrl = http://localhost:3333/api
+@token = COLE_AQUI_O_TOKEN_RETORNADO_NO_LOGIN
+
+### 1. Health Check (TEA-01)
+GET {{baseUrl}}/health
+
+### 2. Protocolos de Modo Crise, Estados de Sobrecarga, Respiração e CAA (TEA-11 a TEA-14)
+GET {{baseUrl}}/crise/protocolos
+
+### 3. Canais Públicos de Emergência — CVV 188, SAMU 192 (TEA-15)
+GET {{baseUrl}}/contatos/emergencia-publica
+
+### 4. Matriz Pública de Privacidade, Retenção e LGPD (TEA-08, TEA-09)
+GET {{baseUrl}}/lgpd/matriz-privacidade
+
+### 5. Catálogo de Locais Calmos — Todos e com Filtros (TEA-24)
+GET {{baseUrl}}/locais
+
+### 5.1 Filtrar Locais Calmos com Sala de Descompressão Sensorial
+GET {{baseUrl}}/locais?possuiDescompressao=true&nivelRuido=Silencioso
+
+### 6. Cadastro de Usuário com Consentimentos LGPD (TEA-04, TEA-08)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "nome": "Vinicius Sena",
+  "email": "vinicius@teapoia.app",
+  "senha": "senhaSegura123",
+  "consentimentoPrivacidade": true,
+  "consentimentoSincronizacaoDiario": true,
+  "versaoTermo": "1.0.0"
+}
+
+### 7. Login e Emissão de Token JWT (TEA-06)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "vinicius@teapoia.app",
+  "senha": "senhaSegura123"
+}
+
+### 8. Consultar Meu Perfil e Consentimentos Ativos (TEA-16)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{token}}
+
+### 9. Atualizar Preferências de Acessibilidade Sensorial (TEA-10, TEA-16)
+PATCH {{baseUrl}}/auth/preferences
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "temaPreferido": "reading",
+  "tamanhoFonte": "large",
+  "reduzirMovimento": true
+}
+
+### 10. Criar Registro no Diário Sensorial (TEA-20)
+POST {{baseUrl}}/diario
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "clientId": "dexie-reg-001",
+  "humor": "sobrecarregado",
+  "nivelSobrecarga": 4,
+  "gatilhos": ["barulho_intenso", "luz_forte"],
+  "relato": "Sobrecarga no transporte público; utilizei respiração guiada 4-4-4-4."
+}
+
+### 11. Sincronização em Lote Local-First Idempotente (TEA-21)
+POST {{baseUrl}}/diario/sync
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "registros": [
+    {
+      "clientId": "dexie-reg-001",
+      "humor": "sobrecarregado",
+      "nivelSobrecarga": 4,
+      "gatilhos": ["barulho_intenso", "luz_forte"],
+      "relato": "Registro atualizado offline e reenviado sem duplicar no banco."
+    },
+    {
+      "clientId": "dexie-reg-002",
+      "humor": "calmo",
+      "nivelSobrecarga": 1,
+      "gatilhos": ["sala_silenciosa"],
+      "relato": "Recuperado após 15 minutos em ambiente tranquilo."
+    }
+  ]
+}
+
+### 12. Listar Histórico do Diário do Usuário (TEA-20)
+GET {{baseUrl}}/diario?pagina=1&limite=20
+Authorization: Bearer {{token}}
+
+### 13. Cadastrar Contato de Confiança / Rede de Apoio (TEA-15)
+POST {{baseUrl}}/contatos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nome": "Maria (Mãe)",
+  "telefone": "11999998888",
+  "parentesco": "Mãe",
+  "mensagemPadrao": "Mãe, estou em sobrecarga sensorial e preciso de apoio agora."
+}
+
+### 14. Listar Contatos de Confiança + Deep Links WhatsApp/Telefone (TEA-15)
+GET {{baseUrl}}/contatos
+Authorization: Bearer {{token}}
+
+### 15. Exportar Todos os Dados Pessoais do Titular em JSON (Portabilidade LGPD — TEA-22)
+GET {{baseUrl}}/lgpd/exportar
+Authorization: Bearer {{token}}
+
+### 16. Excluir Conta e Todos os Dados Sincronizados em Cascata (Direito de Exclusão LGPD — TEA-22)
+DELETE {{baseUrl}}/lgpd/excluir-conta
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "confirmacao": "EXCLUIR MINHA CONTA"
+}

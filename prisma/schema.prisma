@@ -1,0 +1,131 @@
+// =============================================================================
+// TEApoia — Modelo de Dados Oficial (Prisma ORM)
+// Referência: TEA-03 (Modelar entidades e banco de dados inicial)
+// =============================================================================
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -----------------------------------------------------------------------------
+// 1. USUÁRIO, AUTENTICAÇÃO E PREFERÊNCIAS SENSORIAIS (TEA-04 a TEA-07, TEA-10, TEA-16)
+// -----------------------------------------------------------------------------
+model Usuario {
+  id                     String    @id @default(uuid())
+  nome                   String
+  email                  String    @unique
+  senhaHash              String
+
+  // Fluxo de confirmação de e-mail (TEA-05)
+  emailConfirmado        Boolean   @default(false)
+  tokenConfirmacao       String?
+  tokenConfirmacaoExpira DateTime?
+
+  // Fluxo de recuperação de senha e segurança (TEA-07)
+  tokenRecuperacao       String?
+  tokenRecuperacaoExpira DateTime?
+  tentativasRecuperacao  Int       @default(0)
+  bloqueadoAte           DateTime?
+
+  // Preferências de Acessibilidade Sensorial (TEA-10, TEA-16)
+  temaPreferido          String    @default("default") // default | dark | reading | high-contrast
+  tamanhoFonte           String    @default("normal")  // normal | large | xlarge
+  reduzirMovimento       Boolean   @default(false)
+
+  criadoEm               DateTime  @default(now())
+  atualizadoEm           DateTime  @updatedAt
+
+  // Relacionamentos (Cascade Delete garante direito de exclusão LGPD - TEA-22)
+  registrosDiario        RegistroDiario[]
+  contatosApoio          ContatoApoio[]
+  consentimentos         Consentimento[]
+
+  @@map("usuarios")
+}
+
+// -----------------------------------------------------------------------------
+// 2. CONSENTIMENTOS E PRIVACIDADE LGPD (TEA-08, TEA-09)
+// -----------------------------------------------------------------------------
+model Consentimento {
+  id           String    @id @default(uuid())
+  finalidade   String    // Ex: "armazenamento_nuvem_diario" | "termos_privacidade"
+  versaoTermo  String    // Ex: "1.0.0"
+  aceito       Boolean   @default(true)
+  registradoEm DateTime  @default(now())
+  revogadoEm   DateTime?
+
+  usuarioId    String
+  usuario      Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, finalidade])
+  @@map("consentimentos")
+}
+
+// -----------------------------------------------------------------------------
+// 3. DIÁRIO PESSOAL E PERSISTÊNCIA LOCAL-FIRST (TEA-18 a TEA-22)
+// -----------------------------------------------------------------------------
+model RegistroDiario {
+  id              String   @id @default(uuid())
+  // clientId permite sincronização idempotente com o IndexedDB/Dexie (evita duplicatas em reenvios - TEA-21)
+  clientId        String?
+  humor           String   // Ex: "calmo" | "ansioso" | "sobrecarregado" | "cansado" | "bem"
+  nivelSobrecarga Int      // Escala de 1 (estável) a 5 (crise intensa)
+  gatilhos        String?  // JSON array stringificado (ex: '["ruido_alto","luz_forte"]')
+  relato          String?  // Anotação livre opcional do usuário
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+  sincronizadoEm  DateTime @default(now())
+
+  usuarioId       String
+  usuario         Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, clientId])
+  @@index([usuarioId, criadoEm])
+  @@map("registros_diario")
+}
+
+// -----------------------------------------------------------------------------
+// 4. REDE DE APOIO E CONTATOS DE CONFIANÇA (TEA-15)
+// -----------------------------------------------------------------------------
+model ContatoApoio {
+  id             String   @id @default(uuid())
+  nome           String
+  telefone       String   // Formato normalizado (ex: "5511999999999")
+  parentesco     String?  // Ex: "Mãe", "Terapeuta", "Amigo", "Parceiro(a)"
+  mensagemPadrao String   @default("Olá, estou em sobrecarga sensorial e preciso de apoio.")
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+
+  usuarioId      String
+  usuario        Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("contatos_apoio")
+}
+
+// -----------------------------------------------------------------------------
+// 5. CATÁLOGO DE LOCAIS CALMOS E APOIO CONTEXTUAL (TEA-24)
+// -----------------------------------------------------------------------------
+model LocalCalmo {
+  id                  String   @id @default(uuid())
+  nome                String
+  categoria           String   // Ex: "Parque / Natureza" | "Biblioteca" | "Sala Sensorial" | "Espaço Cultural"
+  nivelRuido          String   // Ex: "Silencioso" | "Baixo" | "Moderado" | "Não informado"
+  iluminacao          String   // Ex: "Natural suave" | "Indireta" | "Controlada" | "Não informado"
+  descricao           String
+  possuiDescompressao Boolean  @default(false)
+  endereco            String?
+  latitude            Float?
+  longitude           Float?
+  fonteDados          String   @default("Curadoria Inicial TEApoia (TCC)")
+  criadoEm            DateTime @default(now())
+  atualizadoEm        DateTime @updatedAt
+
+  @@index([categoria])
+  @@map("locais_calmos")
+}
