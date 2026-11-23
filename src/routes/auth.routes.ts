@@ -57,6 +57,19 @@ const PreferenciasSensoriaisSchema = z.object({
   reduzirMovimento: z.boolean().optional()
 });
 
+const LoginSocialSchema = z.object({
+  provedor: z.enum(['google', 'apple', 'microsoft', 'outro']),
+  nome: z.string().trim().min(2, 'Informe seu nome para identificação').max(100),
+  email: z.string().trim().toLowerCase().email('Informe um e-mail válido da conta social'),
+  consentimentoPrivacidade: z
+    .boolean()
+    .refine((val) => val === true, {
+      message: 'Para continuar com login social, é obrigatório aceitar o Aviso de Privacidade (LGPD).'
+    }),
+  consentimentoSincronizacaoDiario: z.boolean().optional().default(false),
+  versaoTermo: z.string().trim().optional().default('1.0.0')
+});
+
 // 1. CADASTRO DE USUÁRIO + REGISTRO DE CONSENTIMENTO LGPD (TEA-04 & TEA-08)
 authRoutes.post('/register', rateLimitSensivel(10, 15), async (req: Request, res: Response): Promise<void> => {
   const validacao = CadastroSchema.safeParse(req.body);
@@ -309,6 +322,109 @@ authRoutes.post('/login', rateLimitSensivel(10, 15), async (req: Request, res: R
     res.status(500).json({
       sucesso: false,
       mensagem: 'Erro interno ao realizar login.'
+    });
+  }
+});
+
+// 3.1 LOGIN E CADASTRO SOCIAL (GMAIL / GOOGLE, APPLE, MICROSOFT) COM LGPD (TEA-EPIC-02 & TEA-08)
+authRoutes.post('/social', rateLimitSensivel(15, 15), async (req: Request, res: Response): Promise<void> => {
+  const validacao = LoginSocialSchema.safeParse(req.body);
+
+  if (!validacao.success) {
+    res.status(400).json({
+      sucesso: false,
+      erros: validacao.error.flatten().fieldErrors
+    });
+    return;
+  }
+
+  const {
+    provedor,
+    nome,
+    email,
+    consentimentoPrivacidade,
+    consentimentoSincronizacaoDiario,
+    versaoTermo
+  } = validacao.data;
+
+  try {
+    let usuario = await prisma.usuario.findUnique({ where: { email } });
+
+    if (!usuario) {
+      const senhaAleatoriaSocial = await bcrypt.hash(randomBytes(24).toString('hex'), 10);
+      usuario = await prisma.usuario.create({
+        data: {
+          nome,
+          email,
+          senhaHash: senhaAleatoriaSocial,
+          emailConfirmado: true,
+          consentimentos: {
+            create: [
+              {
+                finalidade: 'termos_privacidade_conta',
+                versaoTermo,
+                aceito: consentimentoPrivacidade
+              },
+              {
+                finalidade: 'sincronizacao_nuvem_diario',
+                versaoTermo,
+                aceito: consentimentoSincronizacaoDiario
+              }
+            ]
+          }
+        }
+      });
+    } else {
+      await prisma.consentimento.createMany({
+        data: [
+          {
+            usuarioId: usuario.id,
+            finalidade: 'termos_privacidade_conta',
+            versaoTermo,
+            aceito: consentimentoPrivacidade
+          },
+          {
+            usuarioId: usuario.id,
+            finalidade: 'sincronizacao_nuvem_diario',
+            versaoTermo,
+            aceito: consentimentoSincronizacaoDiario,
+            revogadoEm: consentimentoSincronizacaoDiario ? null : new Date()
+          }
+        ]
+      });
+    }
+
+    const token = jwt.sign(
+      { id: usuario.id, email: usuario.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(200).json({
+      sucesso: true,
+      mensagem: `Autenticação via ${provedor.toUpperCase()} concluída com registro de consentimentos LGPD.`,
+      provedor,
+      token,
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        emailConfirmado: usuario.emailConfirmado,
+        temaPreferido: usuario.temaPreferido,
+        tamanhoFonte: usuario.tamanhoFonte,
+        reduzirMovimento: usuario.reduzirMovimento
+      },
+      lgpd: {
+        versaoTermo,
+        consentimentoPrivacidade,
+        consentimentoSincronizacaoDiario,
+        registradoEm: new Date().toISOString()
+      }
+    });
+  } catch {
+    res.status(500).json({
+      sucesso: false,
+      mensagem: 'Erro interno ao processar autenticação social.'
     });
   }
 });

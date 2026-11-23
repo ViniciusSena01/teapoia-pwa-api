@@ -392,4 +392,44 @@ describe('🧪 Suíte de Testes Unitários, Integração e Segurança — TEApoi
     });
     assert.equal(resMeAposExclusao.status, 404);
   });
+
+  it('15. [TEA-EPIC-02 / TEA-08] POST /api/auth/social deve exigir consentimento LGPD e autenticar via Gmail/Google ou Apple', async () => {
+    const emailSocial = `social.gmail.${Date.now()}@gmail.com`;
+
+    const resSemLgpd = await requestApp('POST', '/api/auth/social', {
+      body: {
+        provedor: 'google',
+        nome: 'Usuária Gmail',
+        email: emailSocial,
+        consentimentoPrivacidade: false
+      }
+    });
+    assert.equal(resSemLgpd.status, 400);
+
+    const resSocialOk = await requestApp('POST', '/api/auth/social', {
+      body: {
+        provedor: 'google',
+        nome: 'Usuária Gmail',
+        email: emailSocial,
+        consentimentoPrivacidade: true,
+        consentimentoSincronizacaoDiario: false,
+        versaoTermo: '1.0.0'
+      }
+    });
+    const bodySocial = await resSocialOk.json<{
+      sucesso: boolean;
+      provedor: string;
+      token: string;
+      lgpd: { consentimentoPrivacidade: boolean; consentimentoSincronizacaoDiario: boolean };
+    }>();
+
+    assert.equal(resSocialOk.status, 200);
+    assert.equal(bodySocial.sucesso, true);
+    assert.equal(bodySocial.provedor, 'google');
+    assert.ok(bodySocial.token);
+    assert.equal(bodySocial.lgpd.consentimentoPrivacidade, true);
+    assert.equal(bodySocial.lgpd.consentimentoSincronizacaoDiario, false);
+
+    await prisma.usuario.deleteMany({ where: { email: emailSocial } });
+  });
 });
