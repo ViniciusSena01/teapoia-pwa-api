@@ -16,12 +16,13 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 
 // Rota raiz com catálogo completo de endpoints da API TEApoia
-app.get('/', (_req: Request, res: Response) => {
+app.get('/', (req: Request, res: Response) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
   res.json({
     servico: 'TEApoia REST API — Backend Oficial (TCC ADS)',
     status: 'online',
     versao: '1.0.0',
-    painelInterativoNavegador: 'http://localhost:3333/teste',
+    painelInterativoNavegador: `${baseUrl}/teste`,
     modulos: {
       healthCheck: 'GET /api/health',
       autenticacaoConta: {

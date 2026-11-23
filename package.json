@@ -4,10 +4,14 @@
   "description": "API REST Backend para o projeto TEApoia (PWA)",
   "main": "dist/server.js",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
+    "postinstall": "prisma generate",
+    "build": "prisma generate && tsc",
+    "start": "node scripts/start-cloud.mjs",
     "test": "tsx --test src/__tests__/api.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -34,6 +38,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "prisma": "^6.4.1",
+    "tsx": "^4.19.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -42,8 +48,6 @@
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.13.4",
-    "prisma": "^6.4.1",
-    "tsx": "^4.19.3",
     "typescript": "^5.7.3"
   }
 }
